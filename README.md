@@ -1,2 +1,2 @@
 # pkgbuilds
-My Arch Linux PKGBUILD's. Most of them are available on the aur at [https://aur.archlinux.org/packages/?SeB=m&K=ivanfon].
+My Arch Linux PKGBUILD's. Available on the [AUR](https://aur.archlinux.org/packages/?K=ivanfon&SeB=m).
