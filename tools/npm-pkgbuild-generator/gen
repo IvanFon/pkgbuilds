@@ -1,0 +1,132 @@
+#!/usr/bin/env python3
+
+"""
+Simple PKGBUILD generator for NPM packages
+"""
+
+from string import Template
+import hashlib
+import json
+import os
+import pathlib
+import sys
+import urllib.request
+
+VERSION = '0.1.0'
+GITHUB_URL = 'https://github.com/IvanFon/pkgbuilds'
+
+NPM_URL = 'https://registry.npmjs.org/'
+OUT_DIR = 'output'
+
+def main(argv):
+    """main"""
+    # check args
+    if '-h' in argv or '--help' in argv:
+        print('PKGBUILD generator for NPM packages')
+        print(VERSION)
+        print('Run without arguments to use')
+        print('Generated PKGBUILD goes into "pkgbuilds" directory')
+        print(GITHUB_URL)
+        print('Made by Ivan Fonseca <3')
+        return
+
+    # Get NPM package name & URL
+    pkg_name = input('NPM package name: ')
+    pkg_url = NPM_URL + pkg_name
+
+    print('Fetching package page ({})...'.format(pkg_url))
+    try:
+        pkg_page_req = urllib.request.urlopen(pkg_url)
+    except urllib.error.HTTPError as err:
+        if err.code == 404:
+            print('Error: package not found (404)')
+            return
+        else:
+            print('Error code: {}'.format(err.code))
+            return
+
+    # Parse JSON
+    res = json.loads(pkg_page_req.read())
+    pkg_page_req.close()
+
+    # Get version
+    pkg_ver = res['dist-tags']['latest']
+    print('Got latest package version: {}'.format(pkg_ver))
+    # URL
+    pkg_url = res['homepage']
+    # Description
+    pkg_desc = res['description']
+    # License
+    pkg_license = res['license']
+    # SHA256 sum
+    pkg_sum = 'todo'
+    
+    # Maintainer
+    maintainer_name = input('Maintainer name: ')
+    maintainer_email = input('Maintainer email: ')
+
+    # Get sum
+    print('Getting SHA256 sum...')
+    pkg_sum = getSha256(res['versions'][pkg_ver]['dist']['tarball'])
+
+    # Build template dictionary
+    vals = {
+            'maintainer_name': maintainer_name,
+            'maintainer_email': maintainer_email,
+            'pkgname': pkg_name,
+            'pkgver': pkg_ver,
+            'pkgdesc': pkg_desc,
+            'pkgurl': pkg_url,
+            'pkglicense': pkg_license,
+            'pkgsum': pkg_sum
+            }
+    print('\nValues:')
+    printDictionary(vals)
+    print('\n')
+    # Substitute values
+    pkgbuild = PKGBUILDTemplate(open('template.pkgbuild').read())
+    out = pkgbuild.substitute(vals, delimited='$$')
+
+    # Create output directory
+    if not os.path.exists(OUT_DIR):
+        print('Creating output directory({})...'.format(OUT_DIR))
+        os.makedirs(OUT_DIR)
+    # Output file path
+    out_path = 'output/{}.PKGBUILD'.format(pkg_name)
+    with open(out_path, "w+") as out_file:
+        print(out, file=out_file)
+
+    print('Written to {}'.format(out_path))
+
+# https://gist.github.com/brianewing/994303
+def getSha256(file_url):
+    """Get SHA256 of file"""
+    MAX_FILE_SIZE = 100 * 1024 * 1024
+
+    remote = urllib.request.urlopen(file_url)
+    hash = hashlib.sha256()
+
+    total_read = 0
+    while True:
+        data = remote.read(4096)
+        total_read += 4096
+
+        if not data or total_read > MAX_FILE_SIZE:
+            break
+
+        hash.update(data)
+
+    return hash.hexdigest()
+
+def printDictionary(d):
+    for key in d:
+        print('{}: {}'.format(key, d[key]))
+
+class PKGBUILDTemplate(Template):
+    """PKGBUILD template class"""
+
+    # Bash already uses $ as a delimiter, use $$ instead
+    delimiter = '$$'
+
+if __name__ == "__main__":
+    main(sys.argv)
